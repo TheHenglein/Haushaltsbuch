@@ -10,6 +10,9 @@
   <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="icons/icon-192.png">
   <link rel="stylesheet" href="styles.css">
+  <script>/* dunklen Modus schon vor dem Laden setzen – verhindert kurzes helles Aufblitzen */
+    try { var m = JSON.parse(localStorage.getItem("hb_theme") || '"auto"');
+      if (m === "dark" || (m === "auto" && matchMedia("(prefers-color-scheme: dark)").matches)) document.documentElement.dataset.theme = "dark"; } catch (e) {}</script>
 </head>
 <body data-book="privat">
   <div id="app"><div class="boot">Lade …</div></div>

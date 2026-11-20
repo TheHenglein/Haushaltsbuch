@@ -7,7 +7,7 @@
 const CFG = Object.assign({ googleClientId: "", driveFolder: "Haushaltsbuch", driveFile: "haushaltsbuch.json" }, window.APP_CONFIG || {});
 const SCHEMA = 1;
 // eigene Namen, damit sich Haushaltsbuch und Deko-App (gleiche Adresse) nicht in die Quere kommen
-const LS = { data: "hb_data", meta: "hb_meta", mode: "hb_mode", token: "hb_token", tab: "hb_tab", book: "hb_book" };
+const LS = { data: "hb_data", meta: "hb_meta", mode: "hb_mode", token: "hb_token", tab: "hb_tab", book: "hb_book", theme: "hb_theme" };
 
 /* =================================================================== Hilfen */
 const $ = (s, r = document) => r.querySelector(s);
@@ -338,7 +338,7 @@ function emptyDB() {
   const t = todayISO();
   return {
     schema: SCHEMA, updated: new Date().toISOString(),
-    settings: { privat: { monatsStart: 27 }, gewerbe: { monatsStart: 1 }, last: {}, onboarded: false },
+    settings: { privat: { monatsStart: 27 }, gewerbe: { monatsStart: 1 }, last: {}, onboarded: false, farben: { privat: "lila", gewerbe: "petrol" } },
     konten: [
       { id: "a1", name: "Girokonto", buch: "privat", art: "giro", start: 0, startDatum: t, archiv: false },
       { id: "a2", name: "Bargeld", buch: "privat", art: "bar", start: 0, startDatum: t, archiv: false },
@@ -355,6 +355,7 @@ function migrate(d) {
   d.settings.privat = Object.assign({ monatsStart: 27 }, d.settings.privat || {});
   d.settings.gewerbe = Object.assign({ monatsStart: 1 }, d.settings.gewerbe || {});
   d.settings.last ||= {};
+  d.settings.farben = Object.assign({}, DEFAULT_FARBE, d.settings.farben || {});
   if (!Array.isArray(d.kategorien)) d.kategorien = base.kategorien;
   if (!Array.isArray(d.buchungen)) d.buchungen = [];
   d.schema = SCHEMA;
@@ -362,6 +363,31 @@ function migrate(d) {
 }
 let db = null;
 let book = lsGet(LS.book, "privat");
+const THEMES = {
+  lila: { name: "Lila-Grau", acc: "#4A4E69", light: { soft: "#E9EAED", ink: "#4A4E69" }, dark: { soft: "#2E303E", ink: "#9698A8" } },
+  blau: { name: "Blau", acc: "#1F5FA8", light: { soft: "#E4ECF5", ink: "#1F5FA8" }, dark: { soft: "#1E3656", ink: "#7DA2CD" } },
+  nachtblau: { name: "Nachtblau", acc: "#22407A", light: { soft: "#E4E8EF", ink: "#22407A" }, dark: { soft: "#1F2A45", ink: "#8898B7" } },
+  ozean: { name: "Ozean", acc: "#155E75", light: { soft: "#E3ECEE", ink: "#155E75" }, dark: { soft: "#1A3643", ink: "#77A2AF" } },
+  dunkellila: { name: "Dunkles Lila", acc: "#4B2A7B", light: { soft: "#E9E5EF", ink: "#4B2A7B" }, dark: { soft: "#2E2245", ink: "#9E8CB8" } },
+  aubergine: { name: "Aubergine", acc: "#6A2C5E", light: { soft: "#EDE6EC", ink: "#6A2C5E" }, dark: { soft: "#3A233A", ink: "#AF8DA8" } },
+  petrol: { name: "Petrol", acc: "#2F6B6F", light: { soft: "#E6EDEE", ink: "#2F6B6F" }, dark: { soft: "#243B40", ink: "#86A9AB" } },
+  tanne: { name: "Tannengrün", acc: "#2E6B4A", light: { soft: "#E6EDE9", ink: "#2E6B4A" }, dark: { soft: "#233B32", ink: "#86A996" } },
+  anthrazit: { name: "Anthrazit", acc: "#3A3F47", light: { soft: "#E7E8E9", ink: "#3A3F47" }, dark: { soft: "#282A31", ink: "#95979C" } },
+};
+const DEFAULT_FARBE = { privat: "lila", gewerbe: "petrol" };
+const darkMQ = window.matchMedia ? matchMedia("(prefers-color-scheme: dark)") : null;
+const themeMode = () => lsGet(LS.theme, "auto");
+function applyTheme() {
+  const mode = themeMode();
+  const dark = mode === "dark" || (mode === "auto" && !!darkMQ?.matches);
+  const root = document.documentElement; root.dataset.theme = dark ? "dark" : "light";
+  const key = db?.settings?.farben?.[book] || DEFAULT_FARBE[book] || "lila";
+  const t = THEMES[key] || THEMES.lila, v = dark ? t.dark : t.light;
+  root.style.setProperty("--acc", t.acc); root.style.setProperty("--acc-soft", v.soft); root.style.setProperty("--acc-ink", v.ink);
+  const meta = $('meta[name="theme-color"]'); if (meta) meta.content = t.acc;
+}
+darkMQ?.addEventListener?.("change", () => applyTheme());
+
 
 const kontoById = (id) => db.konten.find((k) => k.id === id);
 const katById = (id) => db.kategorien.find((k) => k.id === id);
@@ -490,7 +516,7 @@ function renderSync() {
 function render() {
   if (!db || !$("#view")) return;
   document.body.dataset.book = book;
-  $('meta[name="theme-color"]').content = book === "gewerbe" ? "#2F6B6F" : "#4A4E69";
+  applyTheme();
   $$(".switch button").forEach((x) => x.classList.toggle("on", x.dataset.book === book));
   $$("nav.tabs button").forEach((x) => x.classList.toggle("on", x.dataset.tab === tab));
   $("#view").innerHTML = ({ start: viewStart, liste: viewListe, auswertung: viewAuswertung, mehr: viewMehr }[tab] || viewStart)();
@@ -597,13 +623,14 @@ function viewListe() {
 }
 
 /* ---------- Auswertung ---------- */
-const PALETTE = ["#4A4E69", "#C9ADA7", "#9A8C98", "#2F6B6F", "#D4A373", "#6D597A", "#8AA29E", "#B56576", "#E0C097", "#7D8597"];
+// mittlere Helligkeit: gut sichtbar auf hellem und dunklem Hintergrund
+const PALETTE = ["#5B7BC9", "#D49A8C", "#9C84C9", "#3FA2A2", "#D9A441", "#C46A8A", "#7FB07A", "#8E95A8", "#E07B54", "#6FB3D9"];
 function donut(parts, total) {
   if (!total) return "";
   const R = 70, C = 2 * Math.PI * R; let off = 0;
   const segs = parts.map((p, i) => { const len = p.cent / total * C; const s = `<circle r="${R}" cx="90" cy="90" fill="none" stroke="${PALETTE[i % PALETTE.length]}" stroke-width="26" stroke-dasharray="${len} ${C - len}" stroke-dashoffset="${-off}" transform="rotate(-90 90 90)"/>`; off += len; return s; }).join("");
   return `<div class="donut"><svg width="180" height="180" viewBox="0 0 180 180" role="img" aria-label="Ausgaben nach Kategorie">${segs}
-    <text x="90" y="86" text-anchor="middle" font-size="12" fill="#7A7486">Ausgaben</text><text x="90" y="106" text-anchor="middle" font-size="17" font-weight="700" fill="#22223B">${esc(eur(total))}</text></svg></div>`;
+    <text class="dl" x="90" y="86" text-anchor="middle" font-size="12">Ausgaben</text><text class="dv" x="90" y="106" text-anchor="middle" font-size="17" font-weight="700">${esc(eur(total))}</text></svg></div>`;
 }
 function viewAuswertung() {
   const p = period(book, ui.off.auswertung), s = summary(book, p), prev = summary(book, period(book, ui.off.auswertung - 1));
@@ -649,6 +676,8 @@ function viewMehr() {
       ${item("konten", "🏦", "Konten", `${kontenOf(book).length} Konten · Anfangsbestand, Kassensturz`)}
       ${item("kategorien", "🗂️", "Kategorien", "umbenennen, ergänzen, ausblenden")}
       ${item("monat", "📅", "Abrechnungsmonat", `beginnt am ${db.settings[book].monatsStart}.`)}</div>
+    <div class="h3"><span>Darstellung</span></div><div class="list">
+      ${item("design", "🎨", "Farben &amp; dunkler Modus", `${({ auto: "Automatisch", light: "Hell", dark: "Dunkel" })[themeMode()]} · Privat ${THEMES[db.settings.farben.privat]?.name} · Gewerbe ${THEMES[db.settings.farben.gewerbe]?.name}`)}</div>
     <div class="h3"><span>Speicherort</span></div><div class="card">${conn}</div>
     <div class="h3"><span>Daten</span></div><div class="list">
       ${item("backup", "⬇️", "Sicherung herunterladen", "alle Daten als Datei")}
@@ -890,7 +919,7 @@ function showKategorien(typ = "aus") {
     ${mains.map((mk) => `<div class="pick-group">${mk.icon} ${esc(mk.name)}${mk.hidden ? ' <span class="tag">aus</span>' : ""}</div><div class="list">
       <button class="item" data-k="${mk.id}"><span class="m"><span class="t">${esc(mk.name)}</span><span class="s">Hauptkategorie${mk.fix ? " · fix" : ""}</span></span><span class="sub">›</span></button>
       ${db.kategorien.filter((k) => k.parent === mk.id).map((k) => `<button class="item" data-k="${k.id}"><span class="m"><span class="t">${esc(k.name)}${k.hidden ? ' <span class="tag">aus</span>' : ""}</span><span class="s">${k.fix ? "fix" : "variabel"}</span></span><span class="sub">›</span></button>`).join("")}
-      <button class="item" data-newsub="${mk.id}"><span class="m"><span class="t" style="color:var(--acc)">+ Unterkategorie</span></span></button></div>`).join("")}`,
+      <button class="item" data-newsub="${mk.id}"><span class="m"><span class="t" style="color:var(--acc-ink)">+ Unterkategorie</span></span></button></div>`).join("")}`,
     foot: `<button class="btn primary" data-newmain>+ Hauptkategorie</button>` });
   m.addEventListener("click", (e) => {
     const t = e.target.closest("button"); if (!t) return;
@@ -930,8 +959,31 @@ function editMonat() {
   $("[data-save]", m).onclick = () => { db.settings[book].monatsStart = +$("[data-s]", m).value; Sync.changed(); closeModal(m); render(); };
 }
 
+/* =================================================================== Darstellung */
+function editDesign() {
+  const draw = () => {
+    const f = db.settings.farben, mode = themeMode();
+    const sw = (b) => `<div class="swatches">${Object.entries(THEMES).map(([k, t]) => `<button class="swatch ${f[b] === k ? "on" : ""}" data-farbe="${k}" data-b="${b}"><i style="background:${t.acc}"></i>${esc(t.name)}</button>`).join("")}</div>`;
+    return `<div class="pick-group">Hell oder dunkel</div>
+      <div class="seg">${[["auto", "Automatisch"], ["light", "Hell"], ["dark", "Dunkel"]].map(([k, l]) => `<button data-mode="${k}" class="${mode === k ? "on" : ""}">${l}</button>`).join("")}</div>
+      <p class="sub">Automatisch folgt der Einstellung des Handys.</p>
+      <div class="pick-group">Farbe Privat</div>${sw("privat")}
+      <div class="pick-group">Farbe Gewerbe</div>${sw("gewerbe")}
+      ${f.privat === f.gewerbe ? `<div class="hint" style="margin-top:12px">Tipp: Unterschiedliche Farben zeigen auf einen Blick, in welchem Buch du gerade bist.</div>` : ""}`;
+  };
+  const m = modal({ title: "Darstellung", body: `<div data-d>${draw()}</div>` });
+  m.addEventListener("click", (e) => {
+    const t = e.target.closest("button"); if (!t) return;
+    if (t.dataset.mode) { lsSet(LS.theme, t.dataset.mode); }
+    else if (t.dataset.farbe) { db.settings.farben[t.dataset.b] = t.dataset.farbe; if (t.dataset.b !== book) { book = t.dataset.b; lsSet(LS.book, book); } Sync.changed(); }
+    else return;
+    render(); $("[data-d]", m).innerHTML = draw();
+  });
+}
+
 /* =================================================================== Willkommen & Start */
 function welcome() {
+  applyTheme();
   $("#app").innerHTML = `<div class="welcome"><img src="icons/icon.svg" alt=""><h1>Haushaltsbuch</h1>
     <p>Ausgaben in Sekunden eintragen – privat und gewerblich getrennt.</p>
     ${CFG.googleClientId ? `<button class="btn primary" data-act="connect">Mit Google Drive verbinden</button>
@@ -1012,6 +1064,7 @@ document.addEventListener("click", async (e) => {
     case "konten": return showKonten();
     case "kategorien": return showKategorien("aus");
     case "monat": return editMonat();
+    case "design": return editDesign();
     case "katdetail": return showKatDetail(id, a.dataset.typ);
     case "prev": ui.off[a.dataset.k]--; return render();
     case "next": ui.off[a.dataset.k] = Math.min(0, ui.off[a.dataset.k] + 1); return render();
