@@ -723,6 +723,7 @@ function openEntry(opts = {}) {
   const sales = () => db.buchungen.filter((x) => x.buch === "gewerbe" && x.art === "ein" && x.datum === todayISO());
   const m = modal({ title: editing ? "Buchung bearbeiten" : `Neue Buchung · ${BOOKS[st.b]}`, full: true, cls: "entry", body: `<div data-body style="display:contents"></div>` });
   const cents = () => { const c = toCent(st.amt); return c && c > 0 ? c : 0; };
+  const ready = () => cents() > 0 && !!st.konto && (st.art === "um" ? !!st.ziel && st.ziel !== st.konto : !!st.kat);
   const draw = () => {
     const konto = kontoById(st.konto), ziel = kontoById(st.ziel);
     const cross = konto && konto.buch !== st.b;
@@ -748,7 +749,7 @@ function openEntry(opts = {}) {
       ${tiles}
       ${st.b === "gewerbe" && st.art === "ein" && !editing ? `<div class="sales">Heute: ${sales().length} Verkäufe · ${eur(sales().reduce((a, x) => a + x.cent, 0))}</div>` : ""}
       <div class="keypad">${["1", "2", "3", "4", "5", "6", "7", "8", "9", ",", "0", "⌫"].map((k) => `<button data-key="${k}">${k}</button>`).join("")}
-        ${editing || st.art === "um" ? `<button class="go" data-save>${editing ? "Speichern" : "Umbuchen"}</button>` : ""}
+        <button class="go ${ready() ? "" : "wait"}" data-save aria-label="Speichern">✓ ${st.art === "um" && !editing ? "Umbuchen" : "Speichern"}</button>
         ${editing ? `<button class="btn danger" data-del style="grid-column:span 3">Löschen</button>` : ""}</div>`;
   };
   const bump = () => { const a = $("[data-amount]", m); a.classList.remove("shake"); void a.offsetWidth; a.classList.add("shake"); };
@@ -790,8 +791,7 @@ function openEntry(opts = {}) {
     if (t.dataset.tile) {
       if (t.dataset.tile === "__all") { const k = await pickKat(st.b, st.art); if (!k) return; st.kat = k; }
       else st.kat = t.dataset.tile;
-      if (editing) return draw();
-      return save();   // Kachel antippen = speichern
+      return draw();   // Kachel wählt nur aus – gespeichert wird mit ✓
     }
     if (t.dataset.pick) {
       const id = await pickKonto({ title: t.dataset.pick === "ziel" ? "Nach Konto" : st.art === "um" ? "Von Konto" : "Konto", b: st.b, art: st.art, all: st.art === "um" });

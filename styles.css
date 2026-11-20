@@ -148,7 +148,9 @@ label.f > span { display: block; font-size: 13px; font-weight: 600; color: var(-
 .keypad { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; padding: 12px 0 calc(12px + env(safe-area-inset-bottom)); margin-top: auto; }
 .keypad button { border: 0; background: #fff; box-shadow: var(--shadow); border-radius: 14px; height: 52px; font-size: 24px; font-weight: 500; }
 .keypad button:active { background: var(--acc-soft); }
-.keypad .go { grid-column: span 3; background: var(--acc); color: #fff; font-size: 17px; font-weight: 700; }
+.keypad .go { grid-column: span 3; background: #3A7D44; color: #fff; font-size: 19px; font-weight: 700; height: 58px; transition: opacity .15s; }
+.keypad .go:active { background: #2F6A38; }
+.keypad .go.wait { opacity: .45; }
 .sales { text-align: center; font-size: 13px; color: var(--acc); font-weight: 600; background: var(--acc-soft); border-radius: 10px; padding: 6px; margin-top: 8px; }
 .transfer { display: grid; gap: 8px; margin-bottom: 8px; }
 .pickbtn { width: 100%; text-align: left; border: 1px solid var(--line); background: #fff; border-radius: 12px; padding: 10px 12px; min-height: 52px; }
